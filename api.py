@@ -8,6 +8,7 @@ import shutil
 import tempfile
 from functools import lru_cache
 from pathlib import Path
+from typing import Annotated
 
 from fastapi import Depends, FastAPI, HTTPException, UploadFile
 from pydantic import BaseModel
@@ -23,23 +24,26 @@ def get_pilot():
     return create_pilot()
 
 
+Pilot = Annotated[tuple, Depends(get_pilot)]
+
+
 class AskRequest(BaseModel):
     question: str
 
 
 @app.get("/health")
-def health(p=Depends(get_pilot)):
+def health(p: Pilot):
     pilot, _ = p
     return {"status": "ok", "chunks": pilot.store.count()}
 
 
 @app.get("/sources")
-def sources(p=Depends(get_pilot)):
+def sources(p: Pilot):
     return {"sources": p[0].store.sources()}
 
 
 @app.post("/ingest")
-def ingest(files: list[UploadFile], p=Depends(get_pilot)):
+def ingest(files: list[UploadFile], p: Pilot):
     pilot, settings = p
     added = {}
     with tempfile.TemporaryDirectory() as tmp:
@@ -56,7 +60,7 @@ def ingest(files: list[UploadFile], p=Depends(get_pilot)):
 
 
 @app.post("/ask")
-def ask(req: AskRequest, p=Depends(get_pilot)):
+def ask(req: AskRequest, p: Pilot):
     if not req.question.strip():
         raise HTTPException(400, "question is empty")
     return p[0].ask(req.question)
