@@ -46,7 +46,7 @@ class VectorStore:
                     vector=v,
                     payload={"text": c.text, "source": c.source, "page": c.page},
                 )
-                for c, v in zip(batch, vectors)
+                for c, v in zip(batch, vectors, strict=True)
             ]
             self.client.upsert(self.collection, points=points)
         return len(chunks)
