@@ -33,7 +33,8 @@ System answer: {answer}
 Is the system answer correct and consistent with the reference (extra correct detail is fine)?
 Reply with JSON only: {{"correct": true or false}}"""
 
-ABSTAIN = re.compile(r"(couldn'?t|could not|cannot|can't|unable to|no information|not (?:found|mentioned|stated|in the))", re.I)
+ABSTAIN = re.compile(
+    r"(couldn'?t|could not|cannot|can't|unable to|no information|not (?:found|mentioned|stated|in the))", re.I)
 
 
 def naive_rag(llm, store, question, k):
@@ -58,7 +59,6 @@ def main():
 
     systems = {"naive_rag": [], "docpilot_agent": []}
     for r in rows:
-        answerable = r["answer"] != "NOT_IN_DOCS"
         hits_src = {h.source for h in pilot.store.search(r["question"], k=settings.top_k)}
 
         t0 = time.perf_counter()
