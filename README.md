@@ -1,2 +1,101 @@
-# DocPilot
-Agentic RAG assistant with LangGraph + Qdrant + FastAPI: routes, grades, rewrites, cites sources and self-checks answers.
+# 🧭 DocPilot: Agentic RAG with LangGraph + Qdrant
+
+![tests](https://github.com/khush-ahuja/DocPilot/actions/workflows/tests.yml/badge.svg)
+
+Ask questions about your own PDFs and notes. Unlike plain "retrieve and answer" RAG, DocPilot is an **agent**: it decides whether it needs to search, throws away irrelevant passages, rewrites the search when it finds nothing useful, answers with **citations**, and **checks its own answer** against the sources before replying.
+
+## How the agent works
+
+```mermaid
+flowchart LR
+    Q([Question]) --> R{Route}
+    R -- small talk --> D[Answer directly] --> E([Reply])
+    R -- needs documents --> S[Retrieve top-k<br/>from Qdrant]
+    S --> G[Grade passages<br/>keep relevant only]
+    G -- none relevant --> W[Rewrite query] --> S
+    G -- relevant --> A[Answer with<br/>citations]
+    A --> C{Grounded<br/>in sources?}
+    C -- yes --> E
+    C -- no, retry once --> A
+```
+
+| Step | Why it matters |
+|---|---|
+| **Route** | Greetings don't trigger a search, which saves latency and tokens |
+| **Grade** | The LLM drops retrieved chunks that don't help, so the answer isn't distracted by noise |
+| **Rewrite** | Vague questions ("WFH allowance?") get expanded into better queries, up to 2 retries |
+| **Cite** | Every claim points to `[n]`, a numbered source with file and page |
+| **Self-check** | A second LLM pass flags unsupported claims and forces one stricter rewrite |
+| **Abstain** | If nothing relevant is found, it says so instead of guessing |
+
+## Stack
+
+LangGraph (agent graph) · Qdrant (vector DB, local or cloud) · FastEmbed `bge-small-en-v1.5` (local embeddings, no API key) · Groq / OpenAI / Ollama (LLM, configurable) · FastAPI (REST API) · Streamlit (chat UI) · pytest + GitHub Actions (offline tests)
+
+## Results
+
+`eval/run_eval.py` runs 15 questions (13 answerable, 2 deliberately unanswerable) over the sample documents through both plain RAG and DocPilot, and an LLM judge scores the answers.
+
+| System | Retrieval hit | Correct | Abstains when it should | Cites sources | Avg latency |
+|---|---|---|---|---|---|
+| Plain RAG | – | – | – | – | – |
+| DocPilot agent | – | – | – | – | – |
+
+Fill in from `eval/results.json` after running the evaluation. The agent trades some latency for accuracy and honesty.
+
+## Quick start
+
+```bash
+git clone https://github.com/khush-ahuja/DocPilot.git
+cd DocPilot
+pip install -r requirements.txt
+cp .env.example .env        # add your GROQ_API_KEY (free at console.groq.com)
+
+python ingest.py sample_docs/          # index the sample documents
+streamlit run app.py                   # chat UI at localhost:8501
+uvicorn api:app --reload               # or the REST API at localhost:8000/docs
+python eval/run_eval.py                # benchmark plain RAG vs the agent
+```
+
+Want it fully local? Set `LLM_PROVIDER=ollama` and `LLM_MODEL=llama3.1` and run Ollama, so no data leaves your machine.
+
+### API
+
+```bash
+curl -F "files=@handbook.pdf" localhost:8000/ingest
+curl -H "Content-Type: application/json" \
+     -d '{"question": "How many leave days can I carry over?"}' localhost:8000/ask
+```
+
+The response contains `answer`, `sources` (file, page, score, text), `grounded`, `rewrites` and an agent `trace`.
+
+## Project structure
+
+```
+docpilot/
+  graph.py       LangGraph agent: route, retrieve, grade, rewrite, generate, self-check
+  store.py       Qdrant wrapper (idempotent upserts, delete by source, search)
+  ingest.py      PDF/Markdown/text loading and paragraph-aware chunking
+  embeddings.py  FastEmbed backend (plus a hashing embedder for tests)
+  prompts.py     all prompts in one place
+  llm.py         Groq / OpenAI / Ollama factory, robust JSON parsing
+api.py           FastAPI service
+app.py           Streamlit chat UI with sources and agent trace
+ingest.py        command-line indexing
+eval/            QA set and plain-RAG vs agent benchmark
+tests/           offline tests using a scripted fake LLM (no API key needed)
+```
+
+## Tests
+
+```bash
+pytest -q
+```
+
+The tests run without any API key or model download. They cover chunking, idempotent indexing, citations, routing, the rewrite loop, clean abstention, the grounding retry and the API.
+
+## Ideas for next steps
+
+- Hybrid search (BM25 + dense) and a cross-encoder reranker
+- Conversation memory for follow-up questions
+- Streaming responses
