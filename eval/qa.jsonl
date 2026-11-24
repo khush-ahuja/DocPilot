@@ -1,0 +1,15 @@
+{"question": "How many days of paid annual leave do full-time employees get?", "answer": "24 days per calendar year, accrued at 2 days per month.", "source": "employee_handbook.md"}
+{"question": "How many unused leave days can I carry over, and when do the rest expire?", "answer": "Up to 8 days can be carried over; remaining days lapse on 31 March.", "source": "employee_handbook.md"}
+{"question": "When can a new joiner start working from home?", "answer": "After completing the 90-day probation period, up to three days per week.", "source": "employee_handbook.md"}
+{"question": "What's the WFH equipment allowance?", "answer": "A one-time home-office allowance of INR 25,000, with receipts submitted within 60 days.", "source": "employee_handbook.md"}
+{"question": "Do I need my manager's OK to buy a 20k course?", "answer": "Yes. Learning requests above INR 15,000 need manager approval before purchase.", "source": "employee_handbook.md"}
+{"question": "How long must a password be?", "answer": "At least 14 characters.", "source": "it_security_policy.md"}
+{"question": "I clicked a phishing link. What should I do and how fast?", "answer": "Report it to security@northwind.example within 1 hour of discovery.", "source": "it_security_policy.md"}
+{"question": "Can I paste payroll data into an external AI tool?", "answer": "No. Payroll data is Restricted and must never be copied to external AI tools.", "source": "it_security_policy.md"}
+{"question": "How quickly must laptop OS security updates be installed?", "answer": "Within 7 days of release.", "source": "it_security_policy.md"}
+{"question": "What payload can the NX-200 carry?", "answer": "600 kg.", "source": "product_spec_nx200.md"}
+{"question": "How long does the bot take to charge to 80 percent?", "answer": "55 minutes, from 0 to 80% via autonomous docking.", "source": "product_spec_nx200.md"}
+{"question": "How many robots can one fleet server manage?", "answer": "Up to 150 robots per NX Fleet Manager server.", "source": "product_spec_nx200.md"}
+{"question": "Is battery damage from running the robot in a freezer covered?", "answer": "No. Damage from operating outside 0 °C to 40 °C is not covered by the warranty.", "source": "product_spec_nx200.md"}
+{"question": "What is the company's stock ticker symbol?", "answer": "NOT_IN_DOCS", "source": null}
+{"question": "How much does the NX-200 cost?", "answer": "NOT_IN_DOCS", "source": null}
