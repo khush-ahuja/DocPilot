@@ -41,7 +41,7 @@ LangGraph (agent graph) · Qdrant (vector DB, local or cloud) · FastEmbed `bge-
 | Plain RAG | – | – | – | – | – |
 | DocPilot agent | – | – | – | – | – |
 
-Fill in from `eval/results.json` after running the evaluation. The agent trades some latency for accuracy and honesty.
+_Pending: the benchmark needs an LLM API key to run. Numbers will be filled in from `eval/results.json`, unedited._
 
 ## Quick start
 
