@@ -41,3 +41,19 @@ def test_ungrounded_answer_is_regenerated_once(store):
     assert out["grounded"]
     assert sum(c.startswith("Answer the question") for c in llm.calls) == 2
     assert "not grounded, retrying" in out["trace"]
+
+
+def test_factual_questions_always_retrieve(store):
+    # regression test: the old LLM router answered questions like these from general knowledge
+    llm = ScriptedLLM()
+    for q in ["What is the approximate turbine entry temperature of a gas turbine?",
+              "Hi, what is the leave policy?", "hello, how many days of leave do I get"]:
+        assert DocPilot(llm, store).ask(q)["route"] == "retrieve"
+
+
+def test_small_talk_detection():
+    from docpilot.graph import is_small_talk
+
+    assert all(is_small_talk(m) for m in ["hi", "Hello there!", "thanks so much", "what can you do?", "Thank you."])
+    questions = ["hi, what's the refund policy?", "Who is the CEO?", "help me find the SLA"]
+    assert not any(is_small_talk(m) for m in questions)
