@@ -11,6 +11,7 @@
 - generate: answer only from kept passages, with [n] citations
 - check:    LLM verifies the answer is grounded; one stricter retry if not
 """
+import re
 import time
 from typing import TypedDict
 
@@ -37,6 +38,20 @@ class RAGState(TypedDict, total=False):
     trace: list[str]
 
 
+# Routing is deterministic on purpose. An earlier LLM router sent ~10% of factual questions in the SQuAD 2.0
+# benchmark down the "direct" path, where the model answered from general knowledge instead of the documents
+# (6 of the agent's 7 losses against plain RAG). Only clear small talk skips retrieval now; everything else is
+# retrieved and graded, which also saves one LLM call per question.
+_SMALL_TALK = re.compile(
+    r"^\s*(hi|hello|hey|thanks|thank you|thx|good (morning|afternoon|evening)|bye|goodbye|ok|okay|cool|great"
+    r"|who are you|what are you|what can you do|how do you work|help)\b[\s!.?,]*(there|docpilot|so much)?[\s!.?]*$",
+    re.I)
+
+
+def is_small_talk(message: str) -> bool:
+    return bool(_SMALL_TALK.match(message))
+
+
 def _context(hits: list[Hit]) -> str:
     return "\n\n".join(f"[{i}] ({h.label()})\n{h.text}" for i, h in enumerate(hits, 1))
 
@@ -49,8 +64,7 @@ def build_graph(llm, store: VectorStore, top_k: int = 5, max_rewrites: int = 2):
         return state.get("trace", []) + [msg]
 
     def route(state: RAGState):
-        r = parse_json(ask(prompts.ROUTE.format(question=state["question"])), {}).get("route", "retrieve")
-        r = r if r in ("retrieve", "direct") else "retrieve"
+        r = "direct" if is_small_talk(state["question"]) else "retrieve"
         return {"route": r, "query": state["question"], "rewrites": 0, "retries": 0,
                 "trace": log(state, f"route: {r}")}
 
