@@ -11,7 +11,7 @@ Setup
   indexed in an in-memory Qdrant collection with FastEmbed (bge-small).
 - Both systems use the same retriever, top-k, answer model and answer prompt. The only difference is
   DocPilot's routing, chunk grading, query rewriting and grounding check.
-- Judge: a larger model (default llama-3.3-70b-versatile) labels each answer correct / incorrect /
+- Judge: a larger model (default openai/gpt-oss-120b) labels each answer correct / incorrect /
   abstained against the official SQuAD answers.
 
 Writes eval/squad_results.json and eval/squad_samples.jsonl (every answer, for error analysis).
@@ -66,7 +66,8 @@ class CountingLLM:
 def make_llm(model: str, temperature: float = 0):
     from langchain_groq import ChatGroq
 
-    return ChatGroq(model=model, temperature=temperature, max_retries=10)
+    extra = {"reasoning_effort": "low"} if "gpt-oss" in model else {}
+    return ChatGroq(model=model, temperature=temperature, max_retries=10, **extra)
 
 
 def load_squad(n_articles: int, n_ans: int, n_unans: int, seed: int):
@@ -124,8 +125,8 @@ def main():
     p.add_argument("--answerable", type=int, default=36)
     p.add_argument("--unanswerable", type=int, default=24)
     p.add_argument("--seed", type=int, default=0)
-    p.add_argument("--model", default="llama-3.1-8b-instant")
-    p.add_argument("--judge", default="llama-3.3-70b-versatile")
+    p.add_argument("--model", default="openai/gpt-oss-20b")
+    p.add_argument("--judge", default="openai/gpt-oss-120b")
     p.add_argument("--out", default="eval/squad_results.json")
     a = p.parse_args()
 
