@@ -1,0 +1,14 @@
+{
+  "config": {"dataset": "SQuAD 2.0 dev (rajpurkar/squad_v2)", "articles": 8, "paragraphs": 294, "questions": 60,
+             "answerable": 36, "answer_model": "groq/qwen/qwen3.8-27b", "judge_model": "groq/openai/gpt-oss-120b",
+             "embeddings": "BAAI/bge-small-en-v1.5", "top_k": 5, "seed": 0, "router": "LLM (since replaced)",
+             "date": "2026-11-25"},
+  "results": {
+    "plain_rag": {"answerable_correct": 0.944, "answerable_wrong": 0.056, "answerable_abstained": 0.0,
+                  "unanswerable_abstained": 0.667, "unanswerable_hallucinated": 0.333, "overall_accuracy": 0.833,
+                  "avg_latency_s": 7.48, "llm_calls_per_q": 1.0, "tokens_per_q": 1002},
+    "docpilot": {"answerable_correct": 0.861, "answerable_wrong": 0.139, "answerable_abstained": 0.0,
+                 "unanswerable_abstained": 0.667, "unanswerable_hallucinated": 0.333, "overall_accuracy": 0.783,
+                 "avg_latency_s": 11.81, "llm_calls_per_q": 3.9, "tokens_per_q": 1549}
+  }
+}
