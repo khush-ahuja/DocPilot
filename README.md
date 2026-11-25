@@ -21,7 +21,7 @@ flowchart LR
 
 | Step | Why it matters |
 |---|---|
-| **Route** | Greetings don't trigger a search, which saves latency and tokens |
+| **Route** | Greetings don't trigger a search. A deterministic rule, not an LLM: see the benchmark below for why |
 | **Grade** | The LLM drops retrieved chunks that don't help, so the answer isn't distracted by noise |
 | **Rewrite** | Vague questions ("WFH allowance?") get expanded into better queries, up to 2 retries |
 | **Cite** | Every claim points to `[n]`, a numbered source with file and page |
@@ -34,14 +34,30 @@ LangGraph (agent graph) · Qdrant (vector DB, local or cloud) · FastEmbed `bge-
 
 ## Results
 
-`eval/run_eval.py` runs 15 questions (13 answerable, 2 deliberately unanswerable) over the sample documents through both plain RAG and DocPilot, and an LLM judge scores the answers.
+### Benchmark: SQuAD 2.0, plain RAG vs DocPilot
 
-| System | Retrieval hit | Correct | Abstains when it should | Cites sources | Avg latency |
-|---|---|---|---|---|---|
-| Plain RAG | – | – | – | – | – |
-| DocPilot agent | – | – | – | – | – |
+[`eval/squad_bench.py`](eval/squad_bench.py) builds a corpus from every paragraph of 8 Wikipedia articles in the SQuAD 2.0 dev set (294 paragraphs) and asks 60 questions: 36 answerable and **24 unanswerable ones written to look answerable**. Both systems use the same retriever, top-k, answer model (`qwen/qwen3.8-27b` on Groq) and answer prompt; `openai/gpt-oss-120b` judges every answer against the official SQuAD answers. Run it yourself with [`benchmark_colab.ipynb`](benchmark_colab.ipynb).
 
-_Pending: the benchmark needs an LLM API key to run. Numbers will be filled in from `eval/results.json`, unedited._
+**Run 1 (with an LLM router), 25 Nov 2026:**
+
+| | Plain RAG | DocPilot |
+|---|---|---|
+| Answerable: correct | **94.4%** | 86.1% |
+| Unanswerable: correctly says "not found" | 66.7% | 66.7% |
+| Overall accuracy | **83.3%** | 78.3% |
+| Avg latency | 7.5 s | 11.8 s |
+| LLM calls / question | 1.0 | 3.9 |
+| Tokens / question | 1,002 | 1,549 |
+
+**DocPilot lost.** Reading the 11 questions where the two systems disagreed showed why:
+
+- **6 of DocPilot's 7 losses came from the router.** It labelled factual questions ("What is the largest university press in the U.S.?") as general knowledge and answered them without searching the documents, and the model then answered from memory.
+- **Where it did retrieve, the agent was better at saying "not found":** it correctly declined 3 trick questions that plain RAG answered with made-up facts.
+- 1 loss was over-caution: the grader dropped the passage that held the answer.
+
+**Fix:** routing is now a deterministic small-talk rule (greetings, thanks, "what can you do?"); every real question goes through retrieval and grading. This also removes one LLM call per question. Regression tests cover the misrouted questions. *Run 2 with the fixed router is pending (Groq free-tier daily token limit); its numbers will be added here unedited.*
+
+Takeaway: with a strong model and clean single-paragraph answers, plain RAG is a hard baseline. The agent's extra steps only pay off when they don't take the documents away from the model.
 
 ## Quick start
 
