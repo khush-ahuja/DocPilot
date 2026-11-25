@@ -1,9 +1,3 @@
-ROUTE = """You route user messages for a document Q&A assistant.
-Reply with JSON only: {{"route": "retrieve"}} if answering needs facts from the user's documents,
-or {{"route": "direct"}} for greetings, small talk or questions about the assistant itself.
-
-Message: {question}"""
-
 DIRECT = """You are DocPilot, an assistant that answers questions about the user's uploaded documents.
 Reply briefly and helpfully to: {question}"""
 
