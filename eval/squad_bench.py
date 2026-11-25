@@ -19,6 +19,7 @@ Writes eval/squad_results.json and eval/squad_samples.jsonl (every answer, for e
 import argparse
 import json
 import random
+import re
 import sys
 import time
 from pathlib import Path
@@ -46,8 +47,11 @@ declined, otherwise "incorrect".
 Reply with JSON only: {{"label": "correct" | "incorrect" | "abstained"}}"""
 
 
+_THINK = re.compile(r"<think>.*?</think>", re.S)
+
+
 class CountingLLM:
-    """Wraps a chat model and counts calls and tokens."""
+    """Wraps a chat model, counts calls and tokens, and strips <think> blocks some reasoning models emit."""
 
     def __init__(self, llm):
         self.llm, self.calls, self.tokens = llm, 0, 0
@@ -57,6 +61,8 @@ class CountingLLM:
         self.calls += 1
         usage = (getattr(out, "response_metadata", {}) or {}).get("token_usage", {}) or {}
         self.tokens += usage.get("total_tokens", 0)
+        if isinstance(out.content, str) and "<think>" in out.content:
+            out.content = _THINK.sub("", out.content).strip()
         return out
 
     def snapshot(self):
@@ -67,7 +73,7 @@ def make_llm(model: str, temperature: float = 0):
     from langchain_groq import ChatGroq
 
     extra = {"reasoning_effort": "low"} if "gpt-oss" in model else {}
-    return ChatGroq(model=model, temperature=temperature, max_retries=10, **extra)
+    return ChatGroq(model=model, temperature=temperature, max_retries=4, **extra)
 
 
 def load_squad(n_articles: int, n_ans: int, n_unans: int, seed: int):
@@ -128,6 +134,7 @@ def main():
     p.add_argument("--model", default="openai/gpt-oss-20b")
     p.add_argument("--judge", default="openai/gpt-oss-120b")
     p.add_argument("--out", default="eval/squad_results.json")
+    p.add_argument("--resume", action="store_true", help="skip questions already in squad_samples.jsonl")
     a = p.parse_args()
 
     settings = Settings()
@@ -136,7 +143,7 @@ def main():
     store = build_store(chunks, settings.embedding_model)
 
     llm = CountingLLM(make_llm(a.model))
-    judge = make_llm(a.judge)
+    judge = CountingLLM(make_llm(a.judge))
     pilot = DocPilot(llm, store, settings.top_k, settings.max_rewrites)
 
     def run_naive(q):
@@ -146,36 +153,63 @@ def main():
     def run_agent(q):
         return pilot.ask(q)["answer"]
 
+    samples_path = Path(a.out).with_name("squad_samples.jsonl")
     samples = {"plain_rag": [], "docpilot": []}
+    if a.resume and samples_path.exists():
+        for line in samples_path.read_text().splitlines():
+            x = json.loads(line)
+            samples[x.pop("system")].append(x)
+    done = {x["id"] for x in samples["docpilot"]} & {x["id"] for x in samples["plain_rag"]}
+    for name in samples:
+        samples[name] = [x for x in samples[name] if x["id"] in done]
+    if not a.resume:
+        samples_path.write_text("")
+    with open(samples_path, "w") as f:  # rewrite only complete pairs, then append as we go
+        for name, xs in samples.items():
+            for x in xs:
+                f.write(json.dumps({"system": name, **x}) + "\n")
+
     for i, r in enumerate(questions, 1):
+        if r["id"] in done:
+            continue
         gold = r["answers"]["text"]
-        for name, fn in (("plain_rag", run_naive), ("docpilot", run_agent)):
-            c0, t0_tok = llm.snapshot()
-            t0 = time.perf_counter()
-            answer = fn(r["question"])
-            latency = time.perf_counter() - t0
-            c1, t1_tok = llm.snapshot()
-            verdict = parse_json(judge.invoke(JUDGE.format(
-                question=r["question"], gold=" | ".join(sorted(set(gold))) if gold else "NONE",
-                answer=answer)).content, {})
-            label = verdict.get("label", "incorrect")
-            label = label if label in ("correct", "incorrect", "abstained") else "incorrect"
-            samples[name].append({"id": r["id"], "title": r["title"], "question": r["question"], "gold": gold,
-                                  "answerable": bool(gold), "answer": answer, "label": label,
-                                  "latency_s": round(latency, 2), "calls": c1 - c0, "tokens": t1_tok - t0_tok})
+        try:
+            pair = {}
+            for name, fn in (("plain_rag", run_naive), ("docpilot", run_agent)):
+                c0, t0_tok = llm.snapshot()
+                t0 = time.perf_counter()
+                answer = fn(r["question"])
+                latency = time.perf_counter() - t0
+                c1, t1_tok = llm.snapshot()
+                verdict = parse_json(judge.invoke(JUDGE.format(
+                    question=r["question"], gold=" | ".join(sorted(set(gold))) if gold else "NONE",
+                    answer=answer)).content, {})
+                label = verdict.get("label", "incorrect")
+                label = label if label in ("correct", "incorrect", "abstained") else "incorrect"
+                pair[name] = {"id": r["id"], "title": r["title"], "question": r["question"], "gold": gold,
+                              "answerable": bool(gold), "answer": answer, "label": label,
+                              "latency_s": round(latency, 2), "calls": c1 - c0, "tokens": t1_tok - t0_tok}
+        except Exception as e:  # e.g. the free tier's daily token limit: keep what we have, resume later
+            if "rate_limit" in str(e).lower() or "429" in str(e):
+                print(f"\nstopped at question {i}: rate limit reached. Re-run with --resume to continue.\n{e}")
+                break
+            raise
+        with open(samples_path, "a") as f:
+            for name, x in pair.items():
+                samples[name].append(x)
+                f.write(json.dumps({"system": name, **x}) + "\n")
         print(f"[{i}/{len(questions)}] plain={samples['plain_rag'][-1]['label']:<10} "
               f"docpilot={samples['docpilot'][-1]['label']:<10} {r['question'][:60]}")
 
+    if not samples["docpilot"]:
+        raise SystemExit("no completed questions yet")
     report = {name: summarize(s) for name, s in samples.items()}
     meta = {"dataset": "SQuAD 2.0 dev (rajpurkar/squad_v2)", "articles": titles, "paragraphs": len(chunks),
             "questions": len(questions), "answerable": sum(bool(q["answers"]["text"]) for q in questions),
             "answer_model": f"groq/{a.model}", "judge_model": f"groq/{a.judge}",
-            "embeddings": settings.embedding_model, "top_k": settings.top_k, "seed": a.seed}
+            "embeddings": settings.embedding_model, "top_k": settings.top_k, "seed": a.seed,
+            "completed": len(samples["docpilot"])}
     Path(a.out).write_text(json.dumps({"config": meta, "results": report}, indent=2))
-    with open(Path(a.out).with_name("squad_samples.jsonl"), "w") as f:
-        for name, s in samples.items():
-            for x in s:
-                f.write(json.dumps({"system": name, **x}) + "\n")
 
     cols = list(next(iter(report.values())).keys())
     print("\n" + json.dumps(meta, indent=2))
