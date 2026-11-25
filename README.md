@@ -55,7 +55,7 @@ LangGraph (agent graph) · Qdrant (vector DB, local or cloud) · FastEmbed `bge-
 - **Where it did retrieve, the agent was better at saying "not found":** it correctly declined 3 trick questions that plain RAG answered with made-up facts.
 - 1 loss was over-caution: the grader dropped the passage that held the answer.
 
-**Fix:** routing is now a deterministic small-talk rule (greetings, thanks, "what can you do?"); every real question goes through retrieval and grading. This also removes one LLM call per question. Regression tests cover the misrouted questions. *Run 2 with the fixed router is pending (Groq free-tier daily token limit); its numbers will be added here unedited.*
+**Fix:** routing is now a deterministic small-talk rule (greetings, thanks, "what can you do?"); every real question goes through retrieval and grading. This also removes one LLM call per question. Regression tests cover the misrouted questions. *Run 2 with the fixed router is pending (API daily token limit); its numbers will be added here unedited.*
 
 Takeaway: with a strong model and clean single-paragraph answers, plain RAG is a hard baseline. The agent's extra steps only pay off when they don't take the documents away from the model.
 
@@ -65,7 +65,7 @@ Takeaway: with a strong model and clean single-paragraph answers, plain RAG is a
 git clone https://github.com/khush-ahuja/DocPilot.git
 cd DocPilot
 pip install -r requirements.txt
-cp .env.example .env        # add your GROQ_API_KEY (free at console.groq.com)
+cp .env.example .env        # add your GROQ_API_KEY (from console.groq.com)
 
 python ingest.py sample_docs/          # index the sample documents
 streamlit run app.py                   # chat UI at localhost:8501
