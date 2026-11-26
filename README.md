@@ -55,9 +55,26 @@ LangGraph (agent graph) · Qdrant (vector DB, local or cloud) · FastEmbed `bge-
 - **Where it did retrieve, the agent was better at saying "not found":** it correctly declined 3 trick questions that plain RAG answered with made-up facts.
 - 1 loss was over-caution: the grader dropped the passage that held the answer.
 
-**Fix:** routing is now a deterministic small-talk rule (greetings, thanks, "what can you do?"); every real question goes through retrieval and grading. This also removes one LLM call per question. Regression tests cover the misrouted questions. *Run 2 with the fixed router is pending (API daily token limit); its numbers will be added here unedited.*
+**Fix:** routing is now a deterministic small-talk rule (greetings, thanks, "what can you do?"); every real question goes through retrieval and grading. This also removes one LLM call per question. Regression tests cover the misrouted questions.
 
-Takeaway: with a strong model and clean single-paragraph answers, plain RAG is a hard baseline. The agent's extra steps only pay off when they don't take the documents away from the model.
+**Run 2 (fixed router), 26 Nov 2026**, same questions, models and settings ([raw results](eval/squad_results_run2_rule_router.json)):
+
+| | Plain RAG | DocPilot |
+|---|---|---|
+| Answerable: correct | **94.4%** | 91.7% |
+| Unanswerable: correctly says "not found" | 66.7% | **70.8%** |
+| Overall accuracy | 83.3% | 83.3% |
+| Avg latency | 7.8 s | 13.7 s |
+| LLM calls / question | 1.0 | 3.3 |
+| Tokens / question | 1,002 | 1,794 |
+
+The fix closed the gap: DocPilot went from 78.3% to 83.3% and now ties plain RAG overall. The two systems disagreed on 6 questions, split 3–3:
+
+- DocPilot won by declining 2 trick questions that plain RAG answered with made-up details (e.g. "how much steam did Watt's engine use?", where the source only mentions coal), plus 1 answerable question.
+- It lost by being over-cautious twice (the grader dropped the passage holding the answer) and by answering 1 trick question that plain RAG declined.
+- Two of the six verdicts are borderline calls by the LLM judge, so at 60 questions treat a difference of 1–2 questions as noise.
+
+Takeaway: with a strong model and clean single-paragraph answers, plain RAG is a hard baseline. DocPilot's grading and grounding steps make it slightly safer on unanswerable questions, but at 3.3x the LLM calls and 1.8x the latency, so it earns its cost only where a wrong answer is expensive. Next: multi-hop questions and noisier documents, where query rewriting should matter more.
 
 ## Quick start
 
