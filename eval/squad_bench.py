@@ -189,7 +189,7 @@ def main():
                 pair[name] = {"id": r["id"], "title": r["title"], "question": r["question"], "gold": gold,
                               "answerable": bool(gold), "answer": answer, "label": label,
                               "latency_s": round(latency, 2), "calls": c1 - c0, "tokens": t1_tok - t0_tok}
-        except Exception as e:  # e.g. the free tier's daily token limit: keep what we have, resume later
+        except Exception as e:  # e.g. the API's daily token limit: keep what we have, resume later
             if "rate_limit" in str(e).lower() or "429" in str(e):
                 print(f"\nstopped at question {i}: rate limit reached. Re-run with --resume to continue.\n{e}")
                 break
