@@ -15,7 +15,13 @@ st.set_page_config(page_title="DocPilot", page_icon="🧭", layout="wide")
 
 @st.cache_resource
 def pilot():
-    return create_pilot()
+    dp, settings = create_pilot()
+    # First run on a fresh deployment: index the bundled sample docs so the demo works immediately
+    if dp.store.count() == 0:
+        sample_dir = Path(__file__).parent / "sample_docs"
+        for f in sorted(sample_dir.glob("*.md")):
+            dp.store.add(chunk_file(f, settings.chunk_size, settings.chunk_overlap))
+    return dp, settings
 
 
 dp, settings = pilot()
